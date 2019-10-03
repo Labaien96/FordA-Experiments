@@ -43,65 +43,6 @@ from keras.utils.vis_utils import plot_model
 import keras
 
 
-def attention_3d_block(hidden_states):
-    # hidden_states.shape = (batch_size, time_steps, hidden_size)
-    hidden_size = int(hidden_states.shape[2])
-    # Inside dense layer
-    #              hidden_states            dot               W            =>           score_first_part
-    # (batch_size, time_steps, hidden_size) dot (hidden_size, hidden_size) => (batch_size, time_steps, hidden_size)
-    # W is the trainable weight matrix of attention
-    # Luong's multiplicative style score
-    score_first_part = Dense(hidden_size, use_bias=False, name='attention_score_vec')(hidden_states)
-    #            score_first_part           dot        last_hidden_state     => attention_weights
-    # (batch_size, time_steps, hidden_size) dot   (batch_size, hidden_size)  => (batch_size, time_steps)
-    h_t = Lambda(lambda x: x[:, -1, :], output_shape=(hidden_size,), name='last_hidden_state')(
-        hidden_states)
-    score = dot([score_first_part, h_t], [2, 1], name='attention_score')
-    print(score.shape)
-    attention_weights = Activation('softmax', name='attention_weight')(score)
-    # (batch_size, time_steps, hidden_size) dot (batch_size, time_steps) => (batch_size, hidden_size)
-    context_vector = dot([hidden_states, attention_weights], [1, 1], name='context_vector')
-    pre_activation = concatenate([context_vector, h_t], name='attention_output')
-    attention_vector = Dense(128, use_bias=False, activation='tanh',
-                             name='attention_vector')(pre_activation)
-    return attention_vector
-
-def model_attention_applied_after_lstm(rnn_layer_type, n_rnn_units, return_sequences,x,input_dim,name):
-    lstm_out = get_recurrent_layer(rnn_layer_type, n_rnn_units, return_sequences, x)
-    attention_mul = attention_3d_block(lstm_out)
-    return attention_mul
-
-
-def get_recurrent_layer(rnn_layer_type, n_rnn_units, return_sequences, input_tensor):
-    """ generate the specified recurrent layer type
-
-        Args:
-            rnn_layer_type (string): the type of the recurrent layer (LSTM, Bi-LSTM, GRU, Bi-GRU, SimpleRNN)
-            n_rnn_units (int): number of units on each recurrent layer
-            return_sequences (bool): whether to return the sequence or not
-            input_tensor (tensor): input tensor of the corresponding layer
-
-        Returns:
-            keras.layers: recurrent layer of required type
-
-    """
-    if rnn_layer_type == 'LSTM':
-        print('rnn input shape::',input_tensor.shape)
-        rnn_layer = CuDNNLSTM(units=n_rnn_units, return_sequences=return_sequences)(input_tensor)
-    elif rnn_layer_type == 'Bi-LSTM':
-        rnn_layer = Bidirectional(CuDNNLSTM(units=n_rnn_units, return_sequences=return_sequences))(input_tensor)
-    elif rnn_layer_type == 'GRU':
-        rnn_layer = CuDNNGRU(units=n_rnn_units, return_sequences=return_sequences)(input_tensor)
-    elif rnn_layer_type == 'Bi-GRU':
-        rnn_layer = Bidirectional(CuDNNGRU(units=n_rnn_units, return_sequences=return_sequences))(input_tensor)
-    elif rnn_layer_type == 'SimpleRNN':
-        rnn_layer = SimpleRNN(units=n_rnn_units, return_sequences=return_sequences)(input_tensor)
-    else:
-        warnings.warn('Job aborted! Please, set a valid recurrent layer type (LSTM, Bi-LSTM, GRU, Bi-GRU, SimpleRNN)')
-        raise SystemExit
-
-    return rnn_layer
-
 def _inception_module(output_directory, input_shape, nb_classes, verbose, build, batch_size,
                  nb_filters, use_residual, use_bottleneck, depth, kernel_size, nb_epochs,X_train, X_val,X_test,
                  y_train,y_val,y_test,input_tensor, stride=1, activation='linear'):
@@ -322,8 +263,8 @@ def main():
     sess = tf.Session(config=config)
     set_session(sess)  # set this TensorFlow session as the default session for Keras
 
-    train_path='/data/jlabaien/data/FordA/FordA_TRAIN.arff'
-    test_path='/data/jlabaien/data/FordA/FordA_TEST.arff'
+    train_path='/Data/FordA_TRAIN.arff'
+    test_path='/Data/FordA_TEST.arff'
 
     
     sequence_length = 500  # the length of the time series
@@ -370,7 +311,7 @@ def main():
     
 
     
-    output_directory = '/data/jlabaien/PHD/FordA/model/InceptionTime_normalized_model.h5'
+    output_directory = '/model/InceptionTime_normalized_model.h5'
     input_shape = (time_steps*window_length)
     nb_classes = 1
     nb_classes=2
